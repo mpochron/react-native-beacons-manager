@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.RemoteException;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import android.util.Log;
 
 import com.facebook.react.bridge.Callback;
@@ -373,7 +373,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             }
           a.pushMap(b);
       }
-      map.pushArray("beacons", a);
+      map.putArray("beacons", a);
       return map;
   }
 
