@@ -373,7 +373,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             }
           a.pushMap(b);
       }
-      map.putArray("beacons", a);
+      map.pushArray("beacons", a);
       return map;
   }
 
