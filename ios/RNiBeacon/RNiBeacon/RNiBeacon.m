@@ -16,8 +16,13 @@
 
 #import "RNiBeacon.h"
 
+#define SYSTEM_VERSION_EQUAL_TO(v)                  ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedSame)
+#define SYSTEM_VERSION_GREATER_THAN(v)              ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedDescending)
+#define SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(v)  ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] != NSOrderedAscending)
+#define SYSTEM_VERSION_LESS_THAN(v)                 ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedAscending)
+#define SYSTEM_VERSION_LESS_THAN_OR_EQUAL_TO(v)     ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] != NSOrderedDescending)
+
 static NSString *const kEddystoneRegionID = @"EDDY_STONE_REGION_ID";
-bool hasListeners = NO;
 
 @interface RNiBeacon() <CLLocationManagerDelegate, ESSBeaconScannerDelegate>
 
@@ -29,33 +34,46 @@ bool hasListeners = NO;
 
 @implementation RNiBeacon
 
-// Will be called when this module's first listener is added.
-- (void)startObserving {
-  hasListeners = YES;
-}
-// Will be called when this module's last listener is removed, or on dealloc.
-- (void)stopObserving {
-  hasListeners = NO;
-}
-
 RCT_EXPORT_MODULE()
 
 #pragma mark Initialization
 
 - (instancetype)init
 {
-  if (self = [super init]) {
-    self.locationManager = [[CLLocationManager alloc] init];
+  if (SYSTEM_VERSION_LESS_THAN(@"13.0")) {
+    if (self = [super init]) {
+      self.locationManager = [[CLLocationManager alloc] init];
 
-    self.locationManager.delegate = self;
-    self.locationManager.pausesLocationUpdatesAutomatically = NO;
-    self.dropEmptyRanges = NO;
-
-    self.eddyStoneScanner = [[ESSBeaconScanner alloc] init];
-    self.eddyStoneScanner.delegate = self;
+      self.locationManager.delegate = self;
+      self.locationManager.pausesLocationUpdatesAutomatically = NO;
+      self.dropEmptyRanges = NO;
+        
+      self.eddyStoneScanner = [[ESSBeaconScanner alloc] init];
+      self.eddyStoneScanner.delegate = self;
+    }
   }
-
   return self;
+}
+
+- (instancetype)manualInit
+{
+    if (SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"13.0")) {
+        [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+            self.locationManager = [[CLLocationManager alloc] init];
+
+            self.locationManager.delegate = self;
+            self.locationManager.pausesLocationUpdatesAutomatically = NO;
+        }];
+        self.dropEmptyRanges = NO;
+          
+        self.eddyStoneScanner = [[ESSBeaconScanner alloc] init];
+        self.eddyStoneScanner.delegate = self;
+    }
+    return self;
+}
+
+RCT_EXPORT_METHOD(manualInitialization) {
+    [self manualInit];
 }
 
 - (NSArray<NSString *> *)supportedEvents
@@ -255,12 +273,16 @@ RCT_EXPORT_METHOD(requestStateForRegion:(NSDictionary *)dict)
 
 RCT_EXPORT_METHOD(startUpdatingLocation)
 {
-  [self.locationManager startUpdatingLocation];
+    [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+        [self.locationManager startUpdatingLocation];
+    }];
 }
 
 RCT_EXPORT_METHOD(stopUpdatingLocation)
 {
-  [self.locationManager stopUpdatingLocation];
+    [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+        [self.locationManager stopUpdatingLocation];
+    }];
 }
 
 RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
@@ -291,9 +313,7 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
 -(void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status
 {
     NSString *statusName = [self nameForAuthorizationStatus:status];
-    if (self.bridge && hasListeners) {
-      [self sendEventWithName:@"authorizationStatusDidChange" body:statusName];
-    }
+    [self sendEventWithName:@"authorizationStatusDidChange" body:statusName];
 }
 
 -(void)locationManager:(CLLocationManager *)manager rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region withError:(NSError *)error
@@ -324,9 +344,8 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
                           @"state":   [self stringForState:state],
                           @"identifier":  region.identifier,
                           };
-    if (self.bridge && hasListeners) {
-      [self sendEventWithName:@"didDetermineState" body:event];
-    }
+
+    [self sendEventWithName:@"didDetermineState" body:event];
 }
 
 -(void) locationManager:(CLLocationManager *)manager didRangeBeacons:
@@ -358,9 +377,7 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
                           @"beacons": beaconArray
                           };
 
-    if (self.bridge && hasListeners) {
-      [self sendEventWithName:@"beaconsDidRange" body:event];
-    }
+    [self sendEventWithName:@"beaconsDidRange" body:event];
 }
 
 -(void)locationManager:(CLLocationManager *)manager
@@ -372,9 +389,7 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
 
   NSDictionary *event = [self convertBeaconRegionToDict: region];
 
-  if (self.bridge && hasListeners) {
-    [self sendEventWithName:@"regionDidEnter" body:event];
-  }
+  [self sendEventWithName:@"regionDidEnter" body:event];
 }
 
 -(void)locationManager:(CLLocationManager *)manager
@@ -386,9 +401,7 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
 
   NSDictionary *event = [self convertBeaconRegionToDict: region];
 
-  if (self.bridge && hasListeners) {
-    [self sendEventWithName:@"regionDidExit" body:event];
-  }
+  [self sendEventWithName:@"regionDidExit" body:event];
 }
 
 + (BOOL)requiresMainQueueSetup
@@ -402,7 +415,7 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
 
 - (void)notifyAboutBeaconChanges:(NSArray *)beacons {
     NSMutableArray *beaconArray = [[NSMutableArray alloc] init];
-
+    
     for (id key in beacons) {
         ESSBeaconInfo *beacon = key;
         NSDictionary *info = [self getEddyStoneInfo:beacon];
@@ -415,9 +428,7 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
                                     },
                             @"beacons": beaconArray
                             };
-    if (self.bridge && hasListeners) {
-      [self sendEventWithName:@"beaconsDidRange" body:event];
-    }
+    [self sendEventWithName:@"beaconsDidRange" body:event];
 }
 
 - (NSDictionary*)getEddyStoneInfo:(id)beaconInfo {
@@ -438,12 +449,12 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
     if ([rssi floatValue] >= 0){
         return [NSNumber numberWithInt:-1];
     }
-
+    
     float ratio = [rssi floatValue] / ([txPower floatValue] - 41);
     if (ratio < 1.0) {
         return [NSNumber numberWithFloat:pow(ratio, 10)];
     }
-
+    
     float distance = (0.89976) * pow(ratio, 7.7095) + 0.111;
     return [NSNumber numberWithFloat:distance];
 }
@@ -454,13 +465,13 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
     if (!dataBuffer) {
         return [NSString string];
     }
-
+    
     NSMutableString *hexString  = [NSMutableString stringWithCapacity:(data.length * 2)];
     [hexString appendString:@"0x"];
     for (int i = 0; i < EDDYSTONE_UUID_LENGTH; ++i) {
         [hexString appendString:[NSString stringWithFormat:@"%02lx", (unsigned long)dataBuffer[i]]];
     }
-
+    
     return [NSString stringWithString:hexString];
 }
 
