@@ -1,4 +1,7 @@
+
 declare module 'react-native-beacons-manager' {
+
+  import { EmitterSubscription } from "react-native";
 
   export interface BeaconRegion {
     identifier: string,
@@ -14,10 +17,66 @@ declare module 'react-native-beacons-manager' {
     | 'notDetermined'
     | 'restricted';
 
+  export type BeaconUUID = string
+
+  interface BeaconRegion {
+    identifier: string
+    uuid: BeaconUUID
+  }
+
+  export enum BeaconProximity {
+    UNKNOWN = "unknown",
+    FAR = "far",
+    NEAR = "near",
+    immediate = "immediate"
+  }
+
+  export interface BeaconS {
+    uuid: BeaconUUID
+    major: number
+    minor: number
+    rssi: number
+    proximity: BeaconProximity
+    accuracy: any // @TODO
+  }
+
+  interface BeaconEventDidRange {
+    region: BeaconRegion
+    beacons: BeaconS[]
+  }
+
+  interface BeaconEventDidDetermineState{
+    state: 'inside' | 'outside' | 'unknown'
+    region: BeaconRegion
+  }
+
+  class BeaconsEventEmitter {
+
+    // data.region - The current region
+    // data.region.identifier
+    // data.region.uuid
+
+    // data.beacons - Array of all beacons inside a region
+    //  in the following structure:
+    //    .uuid
+    //    .major - The major version of a beacon
+    //    .minor - The minor version of a beacon
+    //    .rssi - Signal strength: RSSI value (between -100 and 0)
+    //    .proximity - Proximity value, can either be "unknown", "far", "near" or "immediate"
+    //    .accuracy - The accuracy of a beacon
+    addListener(event: 'didDetermineState', callback: (data: BeaconEventDidDetermineState) => void): EmitterSubscription
+
+    addListener(event: 'beaconsDidRange', callback: (data: BeaconEventDidRange) => void): EmitterSubscription
+  }
+
   class Beacons {
+
+    BeaconsEventEmitter: BeaconsEventEmitter
+
     ///////////////////////////////////////////////////////
     // iOS only
     ///////////////////////////////////////////////////////
+    manualInitialization(): void;
 
     requestAlwaysAuthorization(): void;
 
@@ -152,5 +211,6 @@ declare module 'react-native-beacons-manager' {
   }
 
   const beacons: Beacons;
-  export default beacons;
+  export default beacons;  
 }
+
